@@ -1,0 +1,16 @@
+name: traditional-ml-methods
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - numpy
+  - pandas
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  - jupyter
+  - pip
+  - pip:
+    - jupyter-contrib-nbextensions
+    - jupyter-nbextensions-configurator
