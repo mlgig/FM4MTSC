@@ -1,0 +1,23 @@
+name: deep_learning_methods
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - numpy>=1.19.0
+  - pandas>=1.1.0
+  - scikit-learn>=1.0.0
+  - matplotlib>=3.3.0
+  - seaborn>=0.11.0
+  - jupyter
+  - pip
+  - pip:
+    - torch>=1.9.0
+    - aeon==0.11.0
+    - tensorflow>=2.4.0
+    - einops>=0.4.0
+    - jupyter-contrib-nbextensions
+    - jupyter-nbextensions-configurator
+    - tqdm>=4.62.0
+    - tensorboard>=2.8.0
+    - scikit-optimize>=0.9.0
