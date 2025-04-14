@@ -1,0 +1,10 @@
+einops==0.8.0
+lightning==2.4.0
+matplotlib==3.9.2
+numpy==1.26.3
+pandas==2.2.3
+scikit_learn==1.5.2
+sktime==0.34.0
+torch==2.4.0+cu124
+tqdm==4.67.0
+wandb==0.18.6
