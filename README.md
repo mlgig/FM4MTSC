@@ -134,7 +134,7 @@ If you use this repository in your research, please cite as:
 ```
 @misc{pinar2025fm4mtsc,
     title={An Empirical Evaluation of Foundation Models for Multivariate Time Series Classification},
-    author={Pinar Sungu Isiac and Thach Le Nguyen and Timilehin Aderinola and Georgiana Ifrim},
+    author={Pinar Sungu Isiacik and Thach Le Nguyen and Timilehin Aderinola and Georgiana Ifrim},
     year={2025},
     conference={ECMLPKDD}
     eprint={tba},
