@@ -1,5 +1,5 @@
 # FM4MTSC
-An Empirical Evaluation of Foundation Models for Multivariate Time Series Classification
+This repository contains the code for the paper **"An Empirical Evaluation of Foundation Models for Multivariate Time Series Classification"** accepted at ECML-PKDD 2025.
 
 
 # Time Series Classification Methods
@@ -128,4 +128,15 @@ Each method may come with its own license. Please refer to the original reposito
 
 ## Citation
 
-If you use this repository in your research, please cite the relevant papers for each method you use.
+If you use this repository in your research, please cite as:
+```
+@misc{pinar2025fm4mtsc,
+    title={An Empirical Evaluation of Foundation Models for Multivariate Time Series Classification},
+    author={Pinar Sungu Isiac and Thach Le Nguyen and Timilehin Aderinola and Georgiana Ifrim},
+    year={2025},
+    conference={ECMLPKDD}
+    eprint={tba},
+    archivePrefix={arXiv},
+    primaryClass={cs.LG}
+}
+```
