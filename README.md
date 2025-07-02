@@ -3,6 +3,9 @@ This repository contains the code for the paper [**"An Empirical Evaluation of F
 
 ## Abstract
 Foundation models have recently emerged as a promising approach for time series analysis, adapting transformer architectures originally designed for natural language processing to handle continuous temporal data. While these models demonstrate strong performance across various time series tasks, their handling of multivariate time series, particularly inter-channel dependencies, remains underexplored. In this paper, we present a comprehensive analysis of current foundation models for time series, including tokenization-based, patch-based, and shape-based approaches, focusing on their mechanisms and data representations for capturing relationships between channels. Our analysis shows that even though these models have advanced architectures, they mostly process channels independently, which may prevent them from fully capturing cross-channel patterns. We examine this limitation across different model families and discuss its implications for multivariate time series analysis. Our empirical evaluation shows that foundation models perform well on simpler tasks but exhibit diminished effectiveness as channel dependencies increase, with specialized time series methods consistently outperforming them on complex datasets. These findings highlight the critical need for channel-aware architectures and more effective strategies for modeling inter-channel relationships in foundation models.
+# Datasets
+
+Datasets are available [HERE](https://drive.google.com/drive/folders/10Hvep0hk9naj_nRk4JMiXHMeV1vw0lcd?usp=sharing)
 
 # Time Series Classification Methods
 

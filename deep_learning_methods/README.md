@@ -14,7 +14,7 @@ This package provides implementations of various deep learning models for time s
 
 ```bash
 # Clone the repository
-git clone https://github.com/FM4MTSC.git # Original repo will be provided in camera ready version 
+git clone https://github.com/mlgig/FM4MTSC 
 cd deep_learning_methods
 
 # Create and activate the conda environment
