@@ -12,7 +12,8 @@ from data_provider.data_loader import (
     SMDSegLoader, 
     SWATSegLoader,
     Dataset_M4,
-    UEAloader
+    UEAloader,
+    NPYLoader
 )
 from torch.utils.data import DataLoader
 import torch
@@ -34,7 +35,8 @@ data_dict = {
     'SMD': SMDSegLoader,
     'SWaT': SWATSegLoader,
     'm4': Dataset_M4,
-    'UEA': UEAloader
+    'UEA': UEAloader,
+    'NPY': NPYLoader
 }
 
 

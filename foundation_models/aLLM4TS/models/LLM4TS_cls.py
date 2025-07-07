@@ -15,6 +15,7 @@ class Model(nn.Module):
     
     def __init__(self, configs):
         super().__init__()
+        self.configs = configs
         self.is_llm = configs.is_llm
         self.pretrain = configs.pretrain
         self.pred_len = configs.pred_len
@@ -53,8 +54,8 @@ class Model(nn.Module):
         self.act = F.gelu
         self.dropout = nn.Dropout(0.1)
         self.ln_proj = nn.LayerNorm(configs.d_model * self.patch_num)
-        
-        self.out_layer = nn.Linear(configs.d_model * self.patch_num, configs.num_class)
+        self.out_layer = None
+        self.input_dim = None
 
         self.enc_embedding = DataEmbedding(configs.enc_in * self.patch_len, configs.d_model, configs.dropout)
 
@@ -81,15 +82,24 @@ class Model(nn.Module):
 
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         B, L, M = x_enc.shape
-        
         input_x = rearrange(x_enc, 'b l m -> b m l')
         input_x = self.padding_patch_layer(input_x)
         input_x = input_x.unfold(dimension=-1, size=self.patch_len, step=self.stride)
         input_x = rearrange(input_x, 'b m n p -> b n (p m)')
         outputs = self.enc_embedding(input_x, None)
-        outputs = self.gpt(inputs_embeds=outputs).last_hidden_state
-        outputs = self.act(outputs).reshape(B, -1)
-        outputs = self.ln_proj(outputs)
-        outputs = self.out_layer(outputs)
+        
+        if hasattr(self, 'gpt'):
+            outputs = self.gpt(inputs_embeds=outputs).last_hidden_state
+            outputs = self.act(outputs).reshape(B, -1)
+            outputs = self.ln_proj(outputs)
+            if self.out_layer is None:
+                self.out_layer = nn.Linear(outputs.shape[1], self.configs.num_class).to(outputs.device)
+            outputs = self.out_layer(outputs)
+        else:
+            # If no LLM, apply global average pooling after embedding and use out_layer
+            outputs = outputs.mean(dim=1)  # (B, d_model)
+            if self.out_layer is None:
+                self.out_layer = nn.Linear(outputs.shape[1], self.configs.num_class).to(outputs.device)
+            outputs = self.out_layer(outputs)
         
         return outputs

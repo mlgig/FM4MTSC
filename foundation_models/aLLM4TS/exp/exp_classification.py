@@ -124,14 +124,11 @@ class Exp_Classification(Exp_Basic):
         vali_data, vali_loader = self._get_data(flag='TEST')
         test_data, test_loader = self._get_data(flag='TEST')
 
-        path = os.path.join(self.args.checkpoints, setting)
-        if not os.path.exists(path):
-            os.makedirs(path)
-
         time_now = time.time()
 
         train_steps = len(train_loader)
-        early_stopping = EarlyStopping(patience=self.args.patience, verbose=True)
+        best_val_accuracy = 0
+        best_test_accuracy = 0
 
         model_optim = self._select_optimizer()
         criterion = self._select_criterion()
@@ -175,29 +172,42 @@ class Exp_Classification(Exp_Basic):
             print(
                 "Epoch: {0}, Steps: {1} | Train Loss: {2:.3f} Vali Loss: {3:.3f} Vali Acc: {4:.3f} Test Loss: {5:.3f} Test Acc: {6:.3f}"
                 .format(epoch + 1, train_steps, train_loss, vali_loss, val_accuracy, test_loss, test_accuracy))
-            early_stopping(-val_accuracy, self.model, path)
-            if early_stopping.early_stop:
-                print("Early stopping")
-                break
+            
+            # Track best accuracy
+            if val_accuracy > best_val_accuracy:
+                best_val_accuracy = val_accuracy
+                best_test_accuracy = test_accuracy
+            
             if (epoch + 1) % 5 == 0:
                 adjust_learning_rate(model_optim, epoch + 1, self.args)
 
-        best_model_path = path + '/' + 'checkpoint.pth'
-        self.model.load_state_dict(torch.load(best_model_path))
+        # Save only final results
+        results = {
+            'best_val_accuracy': float(best_val_accuracy),
+            'best_test_accuracy': float(best_test_accuracy),
+            'final_train_loss': float(train_loss),
+            'final_val_loss': float(vali_loss),
+            'final_test_loss': float(test_loss),
+            'final_val_accuracy': float(val_accuracy),
+            'final_test_accuracy': float(test_accuracy)
+        }
+        
+        # Save results to JSON file
+        import json
+        folder_path = './results/' + setting + '/'
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        
+        with open(os.path.join(folder_path, 'results.json'), 'w') as f:
+            json.dump(results, f, indent=4)
 
         return self.model
 
     def test(self, setting, test=0):
         test_data, test_loader = self._get_data(flag='TEST')
-        if test:
-            print('loading model')
-            self.model.load_state_dict(torch.load(os.path.join('./checkpoints/' + setting, 'checkpoint.pth')))
 
         preds = []
         trues = []
-        folder_path = './test_results/' + setting + '/'
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
 
         self.model.eval()
         with torch.no_grad():
@@ -220,17 +230,21 @@ class Exp_Classification(Exp_Basic):
         trues = trues.flatten().cpu().numpy()
         accuracy = cal_accuracy(predictions, trues)
 
-        # result save
+        print('Test accuracy: {}'.format(accuracy))
+        
+        # Save test results
+        results = {
+            'test_accuracy': accuracy,
+            'predictions': predictions.tolist(),
+            'true_labels': trues.tolist()
+        }
+        
+        import json
         folder_path = './results/' + setting + '/'
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
-
-        print('accuracy:{}'.format(accuracy))
-        file_name='result_classification.txt'
-        f = open(os.path.join(folder_path,file_name), 'a')
-        f.write(setting + "  \n")
-        f.write('accuracy:{}'.format(accuracy))
-        f.write('\n')
-        f.write('\n')
-        f.close()
-        return
+        
+        with open(os.path.join(folder_path, 'test_results.json'), 'w') as f:
+            json.dump(results, f, indent=4)
+        
+        return accuracy

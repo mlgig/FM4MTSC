@@ -1131,3 +1131,119 @@ class UEAloader(Dataset):
 
     def __len__(self):
         return len(self.all_IDs)
+
+class NPYLoader(Dataset):
+    """
+    Dataset class for .npy files with dictionary format containing 'train' and 'test' splits
+    Expected format: {'train': {'X': array, 'y': array}, 'test': {'X': array, 'y': array}}
+    """
+    
+    def __init__(self, root_path, file_list=None, limit_size=None, flag=None):
+        self.root_path = root_path
+        self.all_df, self.labels_df = self.load_all(root_path, file_list=file_list, flag=flag)
+        self.all_IDs = self.all_df.index.unique()  # all sample IDs (integer indices 0 ... num_samples-1)
+
+        if limit_size is not None:
+            if limit_size > 1:
+                limit_size = int(limit_size)
+            else:  # interpret as proportion if in (0, 1]
+                limit_size = int(limit_size * len(self.all_IDs))
+            self.all_IDs = self.all_IDs[:limit_size]
+            self.all_df = self.all_df.loc[self.all_IDs]
+
+        # use all features
+        self.feature_names = self.all_df.columns
+        self.feature_df = self.all_df
+
+        # pre_process
+        normalizer = Normalizer()
+        self.feature_df = normalizer.normalize(self.feature_df)
+        print(f"Loaded {len(self.all_IDs)} samples")
+
+    def load_all(self, root_path, file_list=None, flag=None):
+        """
+        Loads datasets from .npy files contained in `root_path` into a dataframe
+        Args:
+            root_path: directory containing .npy files
+            file_list: optionally, provide a list of file paths within `root_path` to consider.
+                Otherwise, entire `root_path` contents will be used.
+        Returns:
+            all_df: a single dataframe with all data corresponding to specified files
+            labels_df: dataframe containing label(s) for each sample
+        """
+        # Select paths for training and evaluation
+        if file_list is None:
+            data_paths = glob.glob(os.path.join(root_path, '*.npy'))  # list of all .npy paths
+        else:
+            data_paths = [os.path.join(root_path, p) for p in file_list]
+        
+        if len(data_paths) == 0:
+            raise Exception('No .npy files found using: {}'.format(os.path.join(root_path, '*.npy')))
+        
+        # For NPYLoader, we don't filter by flag since we load all data from one file
+        input_paths = [p for p in data_paths if os.path.isfile(p) and p.endswith('.npy')]
+        if len(input_paths) == 0:
+            pattern='*.npy'
+            raise Exception("No .npy files found using pattern: '{}'".format(pattern))
+
+        all_df, labels_df = self.load_single(input_paths[0])  # a single file contains dataset
+
+        return all_df, labels_df
+
+    def load_single(self, filepath):
+        """
+        Load a single .npy file with dictionary format
+        Expected format: {'train': {'X': array, 'y': array}, 'test': {'X': array, 'y': array}}
+        """
+        data = np.load(filepath, allow_pickle=True).item()
+        
+        # Combine train and test data
+        X_train = data['train']['X']
+        y_train = data['train']['y']
+        X_test = data['test']['X']
+        y_test = data['test']['y']
+        
+        # Combine all data
+        X_all = np.concatenate([X_train, X_test], axis=0)
+        y_all = np.concatenate([y_train, y_test], axis=0)
+        
+        # Convert to DataFrame format expected by the rest of the pipeline
+        num_samples, seq_len, num_features = X_all.shape
+        
+        # Create feature names
+        feature_names = [f'feature_{i}' for i in range(num_features)]
+        
+        # Reshape data to (num_samples * seq_len, num_features)
+        X_reshaped = X_all.reshape(-1, num_features)
+        
+        # Create DataFrame
+        df = pd.DataFrame(X_reshaped, columns=feature_names)
+        
+        # Create index that repeats for each sample
+        sample_indices = np.repeat(np.arange(num_samples), seq_len)
+        df.index = sample_indices
+        
+        # Create labels DataFrame
+        labels = pd.Series(y_all, dtype="category")
+        self.class_names = labels.cat.categories
+        labels_df = pd.DataFrame(labels.cat.codes, dtype=np.int8)
+        labels_df.index = np.arange(num_samples)
+        
+        self.max_seq_len = seq_len
+        
+        return df, labels_df
+
+    def instance_norm(self, case):
+        # Apply instance normalization similar to UEAloader
+        mean = case.mean(0, keepdim=True)
+        case = case - mean
+        stdev = torch.sqrt(torch.var(case, dim=1, keepdim=True, unbiased=False) + 1e-5)
+        case /= stdev
+        return case
+
+    def __getitem__(self, ind):
+        return self.instance_norm(torch.from_numpy(self.feature_df.loc[self.all_IDs[ind]].values)), \
+               torch.from_numpy(self.labels_df.loc[self.all_IDs[ind]].values)
+
+    def __len__(self):
+        return len(self.all_IDs)

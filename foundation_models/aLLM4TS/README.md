@@ -79,8 +79,20 @@ pip install -r requirements.txt
 ### Datasets
 You can access the well pre-processed datasets from [[Google Drive]](https://drive.google.com/file/d/1DnNz8_XGop9nEESsy_tXbpxVfmsfnJ6A/view?usp=drive_link), then place the downloaded contents under `./dataset`
 
+**New:** You can also use your own datasets in `.npy` format (dictionary with 'train' and 'test' splits). Example format:
+```python
+{
+  'train': {'X': np.ndarray, 'y': np.ndarray},
+  'test': {'X': np.ndarray, 'y': np.ndarray}
+}
+```
+- X: shape (num_samples, seq_len, num_features)
+- y: shape (num_samples,)
+
+You can place your `.npy` file anywhere and specify its path with `--root_path` and `--data_path`.
+
 ### Quick Demos
-1. Download datasets and place them under `./dataset`
+1. Download datasets and place them under `./dataset` **or** use your own `.npy` file.
 2. Conduct the stage 1: Casual Next-patch Continual Pre-training. We provide a experiment script for demonstration purpose under the folder `./scripts`. For example, you can conduct stage 1 continual pre-training by:
 ```bash
 bash ./scripts/pretrain/all_s16.sh
@@ -92,6 +104,34 @@ bash ./scripts/pretrain/all_s16.sh
 bash ./scripts/long-term-forecasting/all.sh
 bash ./scripts/anomaly-detection/all.sh
 ```
+
+**New: Run classification directly with your .npy file:**
+```bash
+python run_LLM4TS.py \
+  --is_training 1 \
+  --model_id test_npy_direct \
+  --model LLM4TS_cls \
+  --task_name classification \
+  --data NPY \
+  --root_path /path/to/your/dataset/folder \
+  --data_path your_data.npy \
+  --seq_len 100 \
+  --batch_size 16 \
+  --train_epochs 5 \
+  --learning_rate 1e-4 \
+  --num_workers 0 \
+  --use_gpu 1 \
+  --gpu 0 \
+  --is_llm 0 \
+  --pretrain 0 \
+  --d_model 32 \
+  --patch_len 4 \
+  --stride 1 \
+  --dropout 0.1 \
+  --freeze 0 \
+  --lradj type1
+```
+
 
 ## 🤝🏼 Citation
 If you find the code is useful in your research, please cite us: 
