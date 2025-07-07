@@ -4,9 +4,12 @@ This package provides implementations of various deep learning models for time s
 
 ## Models Included
 
-- **Aeon CNN**: CNN classifier from the Aeon library
-- **Custom CNN**: Custom implementation of a CNN for time series
-- **TimesNet**: Implementation of the TimesNet architecture
+- Aeon CNN: CNN classifier from the Aeon library
+- Custom CNN: Custom implementation of a CNN for time series
+- TimesNet: Implementation of the TimesNet architecture
+- InceptionTime
+- DisjointCNN
+- LITETime
 
 ## Installation
 
@@ -24,61 +27,34 @@ conda activate deep_learning_methods
 
 ## Usage
 
-### Training the Aeon CNN Model
+> **Important:** All deep learning scripts must be run from within the `deep_learning_methods` directory for correct imports and relative paths.
+
+### Example (from project root):
 
 ```bash
-# Train with default parameters
-python scripts/train_aeon_cnn.py --dataset path/to/dataset.npy
+cd deep_learning_methods
+conda activate deep_learning_methods
 
-# Train with custom parameters
-python scripts/train_aeon_cnn.py --dataset path/to/dataset.npy --epochs 1000 --batch-size 32
+# InceptionTime
+python scripts/train_inceptiontime.py --dataset ../Datasets/CMJ.npy --epochs 10
+
+# DisjointCNN
+python scripts/train_disjointcnn.py --dataset ../Datasets/CMJ.npy --epochs 10
+
+# LITETime
+python scripts/train_litetime.py --dataset ../Datasets/CMJ.npy --epochs 10
+
+# Aeon CNN
+python scripts/train_aeon_cnn.py --dataset ../Datasets/CMJ.npy
+
+# Custom CNN
+python scripts/train_cnn.py --dataset ../Datasets/CMJ.npy
+
+# TimesNet
+python scripts/train_timesnet.py --dataset ../Datasets/CMJ.npy
 ```
 
-### Training the Custom CNN Model
-
-```bash
-# Train with default parameters
-python scripts/train_cnn.py --dataset path/to/dataset.npy
-
-# Train with custom parameters
-python scripts/train_cnn.py --dataset path/to/dataset.npy --lr 0.001 --epochs 100
-```
-
-### Training the TimesNet Model
-
-```bash
-# Train with default parameters
-python scripts/train_timesnet.py --dataset path/to/dataset.npy
-
-# Train with custom parameters
-python scripts/train_timesnet.py --dataset path/to/dataset.npy --depth 3 --num-heads 8
-```
-
-## Model Architecture Details
-
-### Aeon CNN
-
-The CNN model from the Aeon library is a simple yet effective architecture for time series classification. It consists of:
-
-- 1D convolutional layers
-- Global average pooling
-- Dense layers for classification
-
-### Custom CNN
-
-Our custom CNN implementation includes:
-
-- Multiple convolutional layers with batch normalization
-- Residual connections for better gradient flow
-- Dropout for regularization
-
-### TimesNet
-
-TimesNet is a specialized architecture that uses:
-
-- Time-frequency decomposition
-- Multi-scale feature extraction
-- Self-attention mechanisms
+Each script will print training and test accuracy and save results to the `results/` directory.
 
 ## Results
 
@@ -87,24 +63,23 @@ Model evaluation results are saved in both JSON and TXT formats in the `results`
 - Accuracy metrics (train and test)
 - Training and prediction times
 - F1, precision, and recall scores
-- Model size
 - Detailed classification reports
 
 ## Project Structure
 
 ```
-
 deep_learning_methods/
 ├── src/                       # Source code
 │   ├── data/                  # Data loading utilities
 │   ├── models/                # Model implementations
 │   │   ├── aeon_cnn/          # Aeon CNN model
 │   │   ├── cnn/               # Custom CNN model
-│   │   └── timesnet/          # TimesNet model
-│   │       └── layers/        # TimesNet specific layers
+│   │   ├── timesnet/          # TimesNet model
+│   │   └── ...                # Other models
 │   ├── evaluation/            # Evaluation
-│   └── training/              # Training utilities
+│   ├── training/              # Training utilities
 │   └── notebooks/             # Notebooks
 ├── scripts/                   # Training scripts
-
+├── results/                   # Output results
+...
 ```

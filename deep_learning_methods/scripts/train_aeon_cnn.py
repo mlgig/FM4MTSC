@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from src.data.loader import load_npy_dataset, prepare_data_for_dl
 from src.models.aeon_cnn.model import AeonCNNModel
-from src.utils.metrics import evaluate_model, save_results
+from src.evaluation.metrics import evaluate_model, save_results
 
 
 def parse_arguments():

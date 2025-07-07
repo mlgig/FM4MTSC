@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from src.data.loader import load_npy_dataset
 from src.models.timesnet.model import TimesNetWrapper
-from src.utils.metrics import evaluate_model, save_results
+from src.evaluation.metrics import evaluate_model, save_results
 
 
 def parse_arguments():

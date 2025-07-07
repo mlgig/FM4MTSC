@@ -21,19 +21,6 @@ from sklearn.metrics import (
 )
 
 
-def get_model_size(model: Any) -> int:
-    """
-    Estimate the size of the model in bytes.
-
-    Args:
-        model: The trained model
-
-    Returns:
-        Size of the model in bytes
-    """
-    return sys.getsizeof(pickle.dumps(model))
-
-
 def evaluate_model(
     model: Any,
     X_train: np.ndarray,
@@ -106,7 +93,6 @@ def evaluate_model(
         "test_samples_per_second": float(test_samples_per_second),
         "classification_report": class_report,
         "confusion_matrix": conf_matrix,
-        "model_size_bytes": get_model_size(model),
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -162,7 +148,6 @@ def save_results(
         f.write(f"Test Prediction Time: {results['pred_test_time']:.4f} seconds\n")
         f.write(f"Training Samples/Second: {results['train_samples_per_second']:.2f}\n")
         f.write(f"Test Samples/Second: {results['test_samples_per_second']:.2f}\n")
-        f.write(f"Model Size: {results['model_size_bytes'] / 1024:.2f} KB\n")
 
         f.write("\nClassification Report:\n")
         f.write(results["classification_report"])
@@ -204,7 +189,6 @@ def compare_models(
             metric: result[metric],
             "fit_time": result["fit_time"],
             "pred_test_time": result["pred_test_time"],
-            "model_size_kb": result["model_size_bytes"] / 1024,
         }
 
     # Sort by metric

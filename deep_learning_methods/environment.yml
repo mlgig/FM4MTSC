@@ -3,7 +3,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.8
+  - python=3.9
   - numpy>=1.19.0
   - pandas>=1.1.0
   - scikit-learn>=1.0.0
@@ -13,7 +13,8 @@ dependencies:
   - pip
   - pip:
     - torch>=1.9.0
-    - aeon==0.11.0
+    - aeon
+    - tensorflow
     - einops>=0.4.0
     - jupyter-contrib-nbextensions
     - jupyter-nbextensions-configurator
