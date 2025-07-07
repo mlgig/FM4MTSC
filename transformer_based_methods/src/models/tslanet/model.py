@@ -144,7 +144,7 @@ class TSLANet(L.LightningModule):
         )
 
     def training_step(self, batch, batch_idx):
-        x, y = batch
+        x, y = batch[:2]
         logits = self(x)
         loss = self.criterion(logits, y)
         acc = (logits.argmax(dim=-1) == y).float().mean()
@@ -156,7 +156,7 @@ class TSLANet(L.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        x, y = batch
+        x, y = batch[:2]
         logits = self(x)
         loss = self.criterion(logits, y)
         acc = (logits.argmax(dim=-1) == y).float().mean()
@@ -167,7 +167,7 @@ class TSLANet(L.LightningModule):
         self.log("val_f1", f1)
 
     def test_step(self, batch, batch_idx):
-        x, y = batch
+        x, y = batch[:2]
         logits = self(x)
         loss = self.criterion(logits, y)
         acc = (logits.argmax(dim=-1) == y).float().mean()
@@ -246,11 +246,13 @@ class TSLANetPretraining(L.LightningModule):
         return loss
 
     def training_step(self, batch, batch_idx):
-        loss = self._calculate_loss(batch, mode="train")
-        return loss
+        x, y = batch[:2]
+        return self._calculate_loss((x, y), mode="train")
 
     def validation_step(self, batch, batch_idx):
-        self._calculate_loss(batch, mode="val")
+        x, y = batch[:2]
+        return self._calculate_loss((x, y), mode="val")
 
     def test_step(self, batch, batch_idx):
-        self._calculate_loss(batch, mode="test")
+        x, y = batch[:2]
+        return self._calculate_loss((x, y), mode="test")

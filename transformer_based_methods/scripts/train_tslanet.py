@@ -12,15 +12,17 @@ import datetime
 import os
 import sys
 import time
+import warnings
 
 import lightning as L
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+import numpy as np
 
 # Add parent directory to path to allow importing from src
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.data.loader import create_dataloaders, load_pt_dataset, load_ucr_dataset
+from src.data.loader import create_dataloaders, load_pt_dataset, load_ucr_dataset, TimeSeriesDataset
 from src.models.tslanet.model import TSLANet, TSLANetPretraining
 from src.training.trainer import (
     generate_classification_report,
@@ -30,6 +32,9 @@ from src.training.trainer import (
 )
 from src.utils.utils import plot_confusion_matrix, save_source_files, str2bool
 
+warnings.filterwarnings('ignore')
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=UserWarning)
 
 def parse_args():
     """Parse command line arguments"""
@@ -135,48 +140,53 @@ def main():
     # Create checkpoint directory and save config
     checkpoint_dir = setup_training_environment(args)
 
-    # Save source files for reproducibility
-    save_source_files(checkpoint_dir)
+    # Source files saving removed - only metrics are saved
 
     # Log start time
     start_time = time.time()
     print(
         f"Starting TSLANet training: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
-    print(f"Checkpoint directory: {checkpoint_dir}")
 
-    # Load dataset
-    if args.dataset_format == "ucr":
-        if args.dataset_name is None:
-            args.dataset_name = os.path.basename(args.data_path)
-
-        train_dataset, test_dataset = load_ucr_dataset(
-            os.path.dirname(args.data_path), args.dataset_name
-        )
-
+    # Unified dataset loading
+    if args.data_path.endswith('.npy'):
+        if not os.path.exists(args.data_path):
+            raise FileNotFoundError(f"Data file not found: {args.data_path}")
+        data = np.load(args.data_path, allow_pickle=True).item()
+        X_train = data["train"]["X"]
+        y_train = np.array([int(x) for x in data["train"]["y"]])
+        X_test = data["test"]["X"]
+        y_test = np.array([int(x) for x in data["test"]["y"]])
+        train_dataset = TimeSeriesDataset(X_train, y_train)
+        test_dataset = TimeSeriesDataset(X_test, y_test)
         train_loader, val_loader, test_loader = create_dataloaders(
             train_dataset, test_dataset, batch_size=args.batch_size
         )
-
-        # Set dataset properties
+        args.num_classes = len(np.unique(y_train))
+        args.seq_len = X_train.shape[-1]
+        args.num_channels = X_train.shape[1] if len(X_train.shape) > 2 else 1
+    elif args.dataset_format == "ucr":
+        if args.dataset_name is None:
+            args.dataset_name = os.path.basename(args.data_path)
+        train_dataset, test_dataset = load_ucr_dataset(
+            os.path.dirname(args.data_path), args.dataset_name
+        )
+        train_loader, val_loader, test_loader = create_dataloaders(
+            train_dataset, test_dataset, batch_size=args.batch_size
+        )
         args.num_classes = len(torch.unique(train_dataset.y))
         args.seq_len = train_dataset.X.shape[2]
         args.num_channels = train_dataset.X.shape[1]
-
     elif args.dataset_format == "pt":
         train_loader, val_loader, test_loader = load_pt_dataset(
             args.data_path, args.patch_size
         )
-
-        # Set dataset properties
         sample_batch = next(iter(train_loader))
         x_sample, y_sample = sample_batch
         args.num_classes = len(torch.unique(y_sample))
         args.seq_len = x_sample.shape[2]
         args.num_channels = x_sample.shape[1]
-
-    else:  # custom
-        # Implement your custom dataset loading logic here
+    else:
         raise NotImplementedError("Custom dataset loading not implemented")
 
     print(
@@ -266,47 +276,14 @@ def main():
         model, train_loader, val_loader, test_loader, args, checkpoint_dir
     )
 
-    # Generate classification report
-    class_names = [str(i) for i in range(args.num_classes)]
-    df_report = generate_classification_report(
-        model, test_loader, class_names, checkpoint_dir
-    )
-
-    # Extract predictions for confusion matrix
-    device = next(model.parameters()).device
-    model.eval()
-    all_preds = []
-    all_targets = []
-
-    with torch.no_grad():
-        for batch in test_loader:
-            x, y = batch
-            x = x.to(device)
-            y = y.to(device)
-
-            logits = model(x)
-            preds = torch.argmax(logits, dim=1)
-
-            all_preds.extend(preds.cpu().numpy())
-            all_targets.extend(y.cpu().numpy())
-
-    # Plot confusion matrix
-    fig = plot_confusion_matrix(
-        all_targets,
-        all_preds,
-        class_names=class_names,
-        output_path=os.path.join(checkpoint_dir, "confusion_matrix.png"),
-    )
-
     # Log end time and results
     end_time = time.time()
     training_duration = end_time - start_time
 
     print(f"\n====== Training completed in {training_duration:.2f} seconds ======")
-    print(f"Test accuracy: {results['test_accuracy']:.4f}")
+    print(f"Test accuracy: {results['test_acc']:.4f}")
     print(f"Test F1 score: {results['test_f1']:.4f}")
-    print(f"Best model saved at: {results['best_model_path']}")
-    print(f"Full results and logs saved to: {checkpoint_dir}")
+    print("Results saved to results.txt")
 
 
 if __name__ == "__main__":

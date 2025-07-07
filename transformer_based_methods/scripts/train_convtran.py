@@ -155,33 +155,14 @@ def parse_args():
 
 
 def setup_environment(args):
-    """Set up experiment directories and save configuration"""
-    # Create output directory with timestamp
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.join(
-        args.output_dir, f"{args.dataset_name or 'dataset'}_{timestamp}"
-    )
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Create subdirectories
-    checkpoints_dir = os.path.join(output_dir, "checkpoints")
-    predictions_dir = os.path.join(output_dir, "predictions")
-    os.makedirs(checkpoints_dir, exist_ok=True)
-    os.makedirs(predictions_dir, exist_ok=True)
-
-    # Save configuration
-    config = vars(args)
-    config["output_dir"] = output_dir
-    config["checkpoints_dir"] = checkpoints_dir
-    config["predictions_dir"] = predictions_dir
-
-    with open(os.path.join(output_dir, "config.json"), "w") as f:
-        json.dump(config, f, indent=4)
-
+    """Set up environment without creating directories"""
     # Set random seeds for reproducibility
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
+    # Return config without file operations
+    config = vars(args)
+    config["output_dir"] = "results"  # Dummy value, not used
     return config
 
 
@@ -191,37 +172,76 @@ def load_dataset_wrapper(config):
         f"Loading dataset from {config['data_path']} with format {config['dataset_format']}"
     )
 
-    # Use the unified load_dataset function
-    train_dataset, test_dataset = load_dataset(
-        data_path=config["data_path"],
-        format_type=config["dataset_format"],
-        normalize=config["normalize"],
-        dataset_name=config["dataset_name"],
-    )
+    # Support single .npy dict file directly
+    if config["data_path"].endswith('.npy'):
+        if not os.path.exists(config["data_path"]):
+            raise FileNotFoundError(f"Data file not found: {config['data_path']}")
+        data = np.load(config["data_path"], allow_pickle=True).item()
+        X_train = data["train"]["X"]
+        y_train = np.array([int(x) for x in data["train"]["y"]])
+        X_test = data["test"]["X"]
+        y_test = np.array([int(x) for x in data["test"]["y"]])
+        train_dataset = TimeSeriesDataset(X_train, y_train, normalize=config["normalize"])
+        test_dataset = TimeSeriesDataset(X_test, y_test, normalize=config["normalize"])
+        train_loader, val_loader, test_loader = create_dataloaders(
+            train_dataset=train_dataset,
+            test_dataset=test_dataset,
+            batch_size=config["batch_size"] if isinstance(config, dict) else config.batch_size,
+            val_split=config["val_ratio"] if isinstance(config, dict) else getattr(config, 'val_ratio', 0.2),
+            num_workers=config["num_workers"] if isinstance(config, dict) else getattr(config, 'num_workers', 4),
+            pin_memory=config["pin_memory"] if isinstance(config, dict) else getattr(config, 'pin_memory', True),
+        )
+        # Set dataset properties for config
+        sample_x, sample_y = train_dataset[0][:2]
+        num_classes = len(np.unique(y_train))
+        seq_len = sample_x.shape[-1]
+        num_channels = sample_x.shape[0]
+        class_names = [str(i) for i in range(num_classes)]
+        if isinstance(config, dict):
+            config["num_classes"] = num_classes
+            config["seq_len"] = seq_len
+            config["num_channels"] = num_channels
+            config["class_names"] = class_names
+        else:
+            config.num_classes = num_classes
+            config.seq_len = seq_len
+            config.num_channels = num_channels
+            config.class_names = class_names
+        return train_loader, val_loader, test_loader
 
-    # Create dataloaders
+    # Otherwise, use the original loader logic
+    data_path = config["data_path"] if isinstance(config, dict) else config.data_path
+    normalize = config["normalize"] if isinstance(config, dict) else getattr(config, 'normalize', False)
+    train_dataset, test_dataset = load_dataset(
+        data_path=data_path,
+        format_type=config["dataset_format"] if isinstance(config, dict) else getattr(config, 'dataset_format', 'auto'),
+        normalize=normalize,
+        dataset_name=config["dataset_name"] if isinstance(config, dict) else getattr(config, 'dataset_name', None),
+    )
     train_loader, val_loader, test_loader = create_dataloaders(
         train_dataset=train_dataset,
         test_dataset=test_dataset,
-        batch_size=config["batch_size"],
-        val_split=config["val_ratio"],
-        num_workers=config["num_workers"],
-        pin_memory=config["pin_memory"],
+        batch_size=config["batch_size"] if isinstance(config, dict) else config.batch_size,
+        val_split=config["val_ratio"] if isinstance(config, dict) else getattr(config, 'val_ratio', 0.2),
+        num_workers=config["num_workers"] if isinstance(config, dict) else getattr(config, 'num_workers', 4),
+        pin_memory=config["pin_memory"] if isinstance(config, dict) else getattr(config, 'pin_memory', True),
     )
-
-    # Update config with dataset properties
-    # Get a sample to determine dimensions
-    sample_x, sample_y = train_dataset[0][:2]  # Ignore index if present
-
-    config["num_classes"] = len(
-        torch.unique(
-            torch.tensor([item[1] for item in train_dataset if item[1] is not None])
-        )
-    )
-    config["seq_len"] = sample_x.shape[-1]
-    config["num_channels"] = sample_x.shape[0]
-    config["class_names"] = [str(i) for i in range(config["num_classes"])]
-
+    # Set dataset properties for config
+    sample_x, sample_y = train_dataset[0][:2]
+    num_classes = len(np.unique([item[1] for item in train_dataset if item[1] is not None]))
+    seq_len = sample_x.shape[-1]
+    num_channels = sample_x.shape[0]
+    class_names = [str(i) for i in range(num_classes)]
+    if isinstance(config, dict):
+        config["num_classes"] = num_classes
+        config["seq_len"] = seq_len
+        config["num_channels"] = num_channels
+        config["class_names"] = class_names
+    else:
+        config.num_classes = num_classes
+        config.seq_len = seq_len
+        config.num_channels = num_channels
+        config.class_names = class_names
     return train_loader, val_loader, test_loader
 
 
@@ -301,16 +321,6 @@ class ConvTranModule(L.LightningModule):
 def train_convtran(model, train_loader, val_loader, test_loader, config):
     """
     Train the ConvTran model
-
-    Args:
-        model: ConvTran model
-        train_loader: DataLoader for training data
-        val_loader: DataLoader for validation data
-        test_loader: DataLoader for test data
-        config: Configuration dictionary
-
-    Returns:
-        Trained model and results
     """
     # Create Lightning module
     model_module = ConvTranModule(
@@ -319,16 +329,7 @@ def train_convtran(model, train_loader, val_loader, test_loader, config):
         weight_decay=config["weight_decay"],
     )
 
-    # Setup callbacks
-    checkpoint_callback = ModelCheckpoint(
-        dirpath=config["checkpoints_dir"],
-        filename="{epoch:02d}-{val_acc:.4f}",
-        monitor=f"val_{'loss' if config['monitor_metric'] == 'loss' else 'acc'}",
-        mode="min" if config["monitor_metric"] == "loss" else "max",
-        save_top_k=1,
-        save_last=True,
-    )
-
+    # Setup callbacks (no ModelCheckpoint, no file saving)
     early_stopping = EarlyStopping(
         monitor=f"val_{'loss' if config['monitor_metric'] == 'loss' else 'acc'}",
         patience=config["patience"],
@@ -336,71 +337,39 @@ def train_convtran(model, train_loader, val_loader, test_loader, config):
         verbose=True,
     )
 
-    lr_monitor = LearningRateMonitor(logging_interval="epoch")
-
-    # Setup logger
-    tb_logger = TensorBoardLogger(
-        save_dir=os.path.join(config["output_dir"], "logs"), name="convtran"
-    )
+    # No logger at all
+    logger = None
 
     # Setup trainer
     trainer = L.Trainer(
         max_epochs=config["max_epochs"],
-        callbacks=[checkpoint_callback, early_stopping, lr_monitor],
-        logger=tb_logger,
+        callbacks=[early_stopping],
+        logger=False,
         log_every_n_steps=10,
         accelerator="auto",
         devices=1,
+        enable_progress_bar=True,
+        enable_model_summary=False,
     )
 
     # Train the model
     trainer.fit(model_module, train_loader, val_loader)
 
-    # Test the model
-    best_model_path = checkpoint_callback.best_model_path
-    if best_model_path:
-        logger.info(f"Loading best model from {best_model_path}")
-        model_module = ConvTranModule.load_from_checkpoint(best_model_path, model=model)
-
+    # Test the model (no checkpoint reload)
     test_results = trainer.test(model_module, test_loader)
 
-    # Calculate and save additional metrics
-    model.eval()
-    y_true = []
-    y_pred = []
+    # Save results to simple file with config and data info
+    with open("results.txt", "w") as f:
+        f.write(f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Data file: {config['data_path']}\n")
+        f.write("Config:\n")
+        for k, v in config.items():
+            f.write(f"  {k}: {v}\n")
+        f.write("\nResults:\n")
+        f.write(f"Test Accuracy: {test_results[0]['test_acc']:.4f}\n")
+        f.write(f"Test Loss: {test_results[0]['test_loss']:.4f}\n")
 
-    with torch.no_grad():
-        for batch in test_loader:
-            x, y = batch[:2]  # Ignore sample ID if present
-            outputs = model(x)
-            _, predicted = torch.max(outputs, 1)
-            y_true.extend(y.cpu().numpy())
-            y_pred.extend(predicted.cpu().numpy())
-
-    # Save confusion matrix
-    try:
-        plot_confusion_matrix(
-            y_true,
-            y_pred,
-            class_names=config["class_names"],
-            output_path=os.path.join(config["output_dir"], "confusion_matrix.png"),
-        )
-    except Exception as e:
-        logger.error(f"Failed to plot confusion matrix: {e}")
-
-    # Save results
-    results = {
-        "test_accuracy": test_results[0]["test_acc"],
-        "test_loss": test_results[0]["test_loss"],
-        "test_f1": test_results[0].get("test_f1", None),
-        "best_model_path": best_model_path,
-        "num_parameters": sum(p.numel() for p in model.parameters() if p.requires_grad),
-    }
-
-    with open(os.path.join(config["output_dir"], "results.json"), "w") as f:
-        json.dump(results, f, indent=4)
-
-    return model, results
+    return model, test_results[0]
 
 
 def main():
@@ -411,11 +380,7 @@ def main():
     # Setup environment
     config = setup_environment(args)
 
-    # Save source files for reproducibility
-    try:
-        save_source_files(config["output_dir"])
-    except Exception as e:
-        logger.warning(f"Failed to save source files: {e}")
+    # Source files saving removed - only metrics are saved
 
     # Load dataset using the unified loader
     train_loader, val_loader, test_loader = load_dataset_wrapper(config)
@@ -455,10 +420,10 @@ def main():
 
     # Log training time and results
     logger.info(f"Training completed in {end_time - start_time:.2f} seconds")
-    logger.info(f"Test accuracy: {results['test_accuracy']:.4f}")
-    if results["test_f1"]:
+    logger.info(f"Test accuracy: {results['test_acc']:.4f}")
+    if 'test_f1' in results and results['test_f1'] is not None:
         logger.info(f"Test F1 score: {results['test_f1']:.4f}")
-    logger.info(f"Results saved to {config['output_dir']}")
+    logger.info("Results saved to results.txt")
 
     return results
 

@@ -9,7 +9,6 @@ import torch
 from lightning.pytorch.callbacks import (
     EarlyStopping,
     LearningRateMonitor,
-    ModelCheckpoint,
     TQDMProgressBar,
 )
 from lightning.pytorch.loggers import TensorBoardLogger
@@ -52,33 +51,21 @@ def get_run_name(args):
 
 def setup_training_environment(args, run_name=None):
     """
-    Set up the Lightning training environment
+    Set up the Lightning training environment without file operations
 
     Args:
         args: Argument namespace with training configs
         run_name: Optional custom run name
 
     Returns:
-        Directory path for checkpoints, callbacks
+        Dummy directory path (not used)
     """
-    if run_name is None:
-        run_name = get_run_name(args)
-
-    # Create checkpoint directory
-    checkpoint_dir = os.path.join("checkpoints", run_name)
-    os.makedirs(checkpoint_dir, exist_ok=True)
-
-    # Save config
-    with open(os.path.join(checkpoint_dir, "config.json"), "w") as f:
-        config_dict = vars(args)
-        json.dump(config_dict, f, indent=4)
-
-    # For reproducibility
+    # For reproducibility only
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     L.seed_everything(args.seed if hasattr(args, "seed") else 42)
 
-    return checkpoint_dir
+    return "dummy_checkpoint_dir"  # Not used
 
 
 def create_callbacks(checkpoint_dir, monitor="val_loss", mode="min", patience=10):
@@ -117,63 +104,54 @@ def create_callbacks(checkpoint_dir, monitor="val_loss", mode="min", patience=10
 def train_tslanet(model, train_loader, val_loader, test_loader, args, checkpoint_dir):
     """
     Train a TSLANet model
-
-    Args:
-        model: TSLANet model (LightningModule)
-        train_loader: Training data loader
-        val_loader: Validation data loader
-        test_loader: Test data loader
-        args: Training arguments
-        checkpoint_dir: Directory to save checkpoints
-
-    Returns:
-        Trained model, results dictionary
     """
-    # Set up logger
-    logger = TensorBoardLogger(save_dir=os.path.join(checkpoint_dir, "logs"))
+    # Set up logger (optional, can be removed if you want no logs at all)
+    logger = None
 
-    # Create callbacks
-    callbacks = create_callbacks(
-        checkpoint_dir=checkpoint_dir,
-        monitor="val_acc" if args.monitor_metric == "accuracy" else "val_loss",
-        mode="max" if args.monitor_metric == "accuracy" else "min",
-        patience=args.patience,
-    )
+    # Create callbacks (remove ModelCheckpoint and file saving)
+    callbacks = []
+    if args.patience > 0:
+        early_stopping = EarlyStopping(
+            monitor="val_acc" if args.monitor_metric == "accuracy" else "val_loss",
+            patience=args.patience,
+            mode="max" if args.monitor_metric == "accuracy" else "min",
+            verbose=True,
+        )
+        progress_bar = TQDMProgressBar(refresh_rate=10)
+        callbacks = [early_stopping, progress_bar]
 
     # Setup trainer
     trainer = L.Trainer(
         max_epochs=args.max_epochs,
         callbacks=callbacks,
-        logger=logger,
+        logger=False,
         log_every_n_steps=10,
         accelerator="auto",
         devices=1,
         deterministic=True,
+        enable_progress_bar=True,
+        enable_model_summary=False,
     )
 
     # Train model
     trainer.fit(model, train_loader, val_loader)
 
-    # Load best model for evaluation
-    best_model_path = callbacks[0].best_model_path
-    if os.path.exists(best_model_path):
-        model = type(model).load_from_checkpoint(best_model_path)
-
-    # Test model
+    # Test model (no checkpoint reload)
     test_results = trainer.test(model, test_loader)[0]
 
-    # Save test results
-    results = {
-        "test_accuracy": test_results["test_acc"],
-        "test_f1": test_results["test_f1"],
-        "test_loss": test_results["test_loss"],
-        "best_model_path": best_model_path,
-    }
-
-    with open(os.path.join(checkpoint_dir, "results.json"), "w") as f:
-        json.dump(results, f, indent=4)
-
-    return model, results
+    # Save results to simple file with config and data info
+    with open("results.txt", "w") as f:
+        f.write(f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Data file: {args.data_path}\n")
+        f.write("Config:\n")
+        for k, v in vars(args).items():
+            f.write(f"  {k}: {v}\n")
+        f.write("\nResults:\n")
+        f.write(f"Test Accuracy: {test_results['test_acc']:.4f}\n")
+        f.write(f"Test F1: {test_results['test_f1']:.4f}\n")
+        f.write(f"Test Loss: {test_results['test_loss']:.4f}\n")
+    
+    return model, test_results
 
 
 def pretrain_tslanet(model, train_loader, val_loader, args, checkpoint_dir):
@@ -259,7 +237,7 @@ def generate_classification_report(
 
     with torch.no_grad():
         for batch in test_loader:
-            x, y = batch
+            x, y = batch[:2]
             x = x.to(device)
             y = y.to(device)
 
