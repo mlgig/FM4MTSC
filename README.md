@@ -139,7 +139,7 @@ If you use this repository in your research, please cite as:
     title={An Empirical Evaluation of Foundation Models for Multivariate Time Series Classification},
     author={Pinar Sungu Isiacik and Thach Le Nguyen and Timilehin Aderinola and Georgiana Ifrim},
     year={2025},
-    conference={ECMLPKDD}
+    conference={ECMLPKDD},
     eprint={tba},
     archivePrefix={arXiv},
     primaryClass={cs.LG}
