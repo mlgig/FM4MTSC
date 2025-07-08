@@ -7,11 +7,10 @@ from itertools import chain
 from torch.utils.data import DataLoader, TensorDataset
 from torch import nn
 
-from mantis.architecture import Mantis8M
-
 from .trainer_utils.architecture import FineTuningNetwork
 from .trainer_utils.dataset import LabeledDataset
 from .trainer_utils.scheduling import adjust_learning_rate
+from architecture import Mantis8M
 
 
 class MantisTrainer:
