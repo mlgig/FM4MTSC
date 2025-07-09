@@ -447,29 +447,20 @@ class PMUData(BaseData):
         config=None,
     ):
         self.set_num_processes(n_proc=n_proc)
-
         self.all_df = self.load_all(root_dir, file_list=file_list, pattern=pattern)
-
-        if config["data_window_len"] is not None:
-            self.max_seq_len = config["data_window_len"]
-            # construct sample IDs: 0, 0, ..., 0, 1, 1, ..., 1, 2, ..., (num_whole_samples - 1)
-            # num_whole_samples = len(self.all_df) // self.max_seq_len  # commented code is for more general IDs
-            # IDs = list(chain.from_iterable(map(lambda x: repeat(x, self.max_seq_len), range(num_whole_samples + 1))))
-            # IDs = IDs[:len(self.all_df)]  # either last sample is completely superfluous, or it has to be shortened
-            IDs = [i // self.max_seq_len for i in range(self.all_df.shape[0])]
-            self.all_df.insert(loc=0, column="ExID", value=IDs)
+        self.all_df = self.select_columns(self.all_df)
+        # target sütunu int'e cast ediliyor
+        if 'target' in self.all_df.columns:
+            self.all_df['target'] = self.all_df['target'].astype(int)
+            # class_names özelliği ekleniyor
+            self.class_names = sorted(self.all_df['target'].unique().tolist())
         else:
-            # self.all_df = self.all_df.sort_values(by=['ExID'])  # dataset is presorted
-            self.max_seq_len = 30
-
-        self.all_df = self.all_df.set_index("ExID")
-        # rename columns
-        self.all_df.columns = [
-            re.sub(r"\d+", str(i // 3), col_name)
-            for i, col_name in enumerate(self.all_df.columns[:])
-        ]
-        # self.all_df.columns = ["_".join(col_name.split(" ")[:-1]) for col_name in self.all_df.columns[:]]
-        self.all_IDs = self.all_df.index.unique()  # all sample (session) IDs
+            self.class_names = []
+        self.feature_names = [c for c in self.all_df.columns if c not in ['target']]
+        self.feature_df = self.all_df[self.feature_names]
+        self.labels_df = self.all_df[['target']]
+        self.all_IDs = self.all_df.index.unique()
+        self.max_seq_len = self.all_df.shape[1] - 1  # ExID hariç
 
         if limit_size is not None:
             if limit_size > 1:
@@ -552,5 +543,74 @@ class PMUData(BaseData):
         df = pd.read_csv(filepath)
         return df
 
+    @staticmethod
+    def select_columns(df):
+        df = df.copy()
+        if 'ExID' in df.columns:
+            df['ExID'] = df['ExID'].astype(int)
+            df = df.set_index('ExID')
+        return df
 
-data_factory = {"weld": WeldData, "tsra": TSRegressionArchive, "pmu": PMUData}
+
+class NPYData(BaseData):
+    """
+    General purpose NPY file loader. Reads (num_samples, channels, timelength) or dict (X, y) directly from .npy file.
+    """
+    def __init__(self, root_dir=None, file_list=None, pattern=None, n_proc=1, limit_size=None, config=None, npy_path=None, split='train', task='classification', **kwargs):
+        self.config = config or {}
+        self.task = task or self.config.get('task', 'classification')
+        self.split = split
+        if npy_path is None and self.config.get('npy_path'):
+            npy_path = self.config['npy_path']
+        if npy_path is None:
+            raise ValueError('NPYData: npy_path must be specified!')
+        d = np.load(npy_path, allow_pickle=True)
+        if isinstance(d, np.lib.npyio.NpzFile):
+            d = dict(d)
+        if hasattr(d, 'item'):
+            d = d.item()
+        # If dict, use split key
+        if isinstance(d, dict) and split in d:
+            X = d[split]['X']
+            y = d[split]['y']
+        elif isinstance(d, dict) and 'X' in d and 'y' in d:
+            X = d['X']
+            y = d['y']
+        else:
+            raise ValueError('NPYData: Expected data format not found.')
+        # X: (num_samples, channels, timelength) or (num_samples, timelength, channels)
+        if X.ndim == 3 and X.shape[1] < X.shape[2]:
+            # (num_samples, channels, timelength) -> (num_samples, timelength, channels)
+            X = np.transpose(X, (0, 2, 1))
+        X = X.astype(np.float32)
+        if self.task == 'classification':
+            y = y.astype(np.int64)
+        else:
+            y = y.astype(np.float32)
+        self.X = X
+        self.y = y
+        self.num_samples = X.shape[0]
+        self.seq_len = X.shape[1]
+        self.num_features = X.shape[2]
+        self.all_IDs = np.arange(self.num_samples)
+        self.max_seq_len = self.seq_len
+        # Convert to DataFrame (one DataFrame per sample, index=ID, columns=feature)
+        # For DataLoader compatibility, create feature_df and labels_df
+        # (num_samples, seq_len, num_features) -> (num_samples * seq_len, num_features)
+        feature_rows = []
+        for i in range(self.num_samples):
+            df = pd.DataFrame(X[i], columns=[f'feat{j+1}' for j in range(self.num_features)])
+            df['ID'] = i
+            feature_rows.append(df)
+        self.feature_df = pd.concat(feature_rows, ignore_index=True).set_index('ID')
+        self.feature_names = [f'feat{j+1}' for j in range(self.num_features)]
+        # labels_df: (num_samples, 1)
+        self.labels_df = pd.DataFrame({'target': y}, index=self.all_IDs)
+        # class_names (for classification)
+        if self.task == 'classification':
+            self.class_names = sorted(np.unique(y).tolist())
+        else:
+            self.class_names = []
+
+
+data_factory = {"weld": WeldData, "tsra": TSRegressionArchive, "pmu": PMUData, "npy": NPYData}

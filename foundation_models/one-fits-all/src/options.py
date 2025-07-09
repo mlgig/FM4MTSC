@@ -1,4 +1,6 @@
 import argparse
+import os
+import shutil
 
 
 class Options(object):
@@ -170,6 +172,13 @@ class Options(object):
     def parse(self):
 
         args = self.parser.parse_args()
+
+        if (not args.config_filepath) or (args.config_filepath and not os.path.exists(args.config_filepath)):
+            default_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'default_config.json')
+            auto_config_path = os.path.join(os.getcwd(), 'auto_generated_config.json')
+            shutil.copy(default_path, auto_config_path)
+            args.config_filepath = auto_config_path
+            print(f"No config file provided or found. Default config copied to: {auto_config_path}")
 
         args.lr_step = [int(i) for i in args.lr_step.split(',')]
         args.lr_factor = [float(i) for i in args.lr_factor.split(',')]

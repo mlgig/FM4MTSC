@@ -247,6 +247,8 @@ def main(config):
 
     if config["test_only"] == "testset":  # Only evaluate and skip training
         dataset_class, collate_fn, runner_class = pipeline_factory(config)
+        if not test_indices:
+            test_indices = test_data.all_IDs
         test_dataset = dataset_class(test_data, test_indices)
 
         test_loader = DataLoader(
@@ -267,8 +269,12 @@ def main(config):
         )
         aggr_metrics_test, per_batch_test = test_evaluator.evaluate(keep_all=True)
         print_str = "Test Summary: "
+        if "accuracy" in aggr_metrics_test and aggr_metrics_test["accuracy"] is not None:
+            print("Test Accuracy: {:.4f}".format(aggr_metrics_test["accuracy"]))
+            logger.info("Test Accuracy: {:.4f}".format(aggr_metrics_test["accuracy"]))
         for k, v in aggr_metrics_test.items():
-            print_str += "{}: {:8f} | ".format(k, v)
+            if v is not None:
+                print_str += "{}: {:8f} | ".format(k, v)
         logger.info(print_str)
         return
 

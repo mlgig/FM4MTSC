@@ -90,16 +90,11 @@ def setup(args):
             traceback.print_exc()
             sys.exit(1)
 
-    # Create output directory
+    # Create output directory automatically
     initial_timestamp = datetime.now()
     output_dir = config["output_dir"]
     if not os.path.isdir(output_dir):
-        raise IOError(
-            "Root directory '{}', where the directory of the experiment will be created, must exist".format(
-                output_dir
-            )
-        )
-
+        os.makedirs(output_dir)
     output_dir = os.path.join(output_dir, config["experiment_name"])
 
     formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
@@ -468,8 +463,8 @@ class UnsupervisedRunner(BaseRunner):
             if keep_all:
                 per_batch["target_masks"].append(target_masks.cpu().numpy())
                 per_batch["targets"].append(targets.cpu().numpy())
-                per_batch["predictions"].append(predictions.cpu().numpy())
-                per_batch["metrics"].append([loss.cpu().numpy()])
+                per_batch["predictions"].append(predictions.detach().cpu().numpy())
+                per_batch["metrics"].append([loss.detach().cpu().numpy()])
                 per_batch["IDs"].append(IDs)
 
             metrics = {"loss": mean_loss}
@@ -579,8 +574,8 @@ class SupervisedRunner(BaseRunner):
             mean_loss = batch_loss / len(loss)  # mean loss (over samples)
 
             per_batch["targets"].append(targets.cpu().numpy())
-            per_batch["predictions"].append(predictions.cpu().numpy())
-            per_batch["metrics"].append([loss.cpu().numpy()])
+            per_batch["predictions"].append(predictions.detach().cpu().numpy())
+            per_batch["metrics"].append([loss.detach().cpu().numpy()])
             per_batch["IDs"].append(IDs)
 
             metrics = {"loss": mean_loss}
