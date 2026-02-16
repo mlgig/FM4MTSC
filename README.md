@@ -6,8 +6,8 @@ Foundation models have recently emerged as a promising approach for time series 
 
 ## Resources
 * [Full Paper (ResearchGate)]([https://www.researchgate.net/publication/392760978_...](https://www.researchgate.net/publication/392760978_An_Empirical_Evaluation_of_Foundation_Models_for_Multivariate_Time_Series_Classification))
-* [Research Poster (PDF)](./docs/Poster-ECML25.pptx.pdf)
-* [Technical Presentation (PDF)](./docs/1221-Presentation.pdf)
+* [Research Poster (PDF)](./docs/Poster.pdf)
+* [Technical Presentation (PDF)](./docs/1221-An_Empirical_Evaluation_of_Foundation_Models_for_MTSC_Pinar_Sungu_Isiacik.pptx)
 
 
 # Datasets
